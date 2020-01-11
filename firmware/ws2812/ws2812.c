@@ -18,6 +18,11 @@
  * along with this library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+ // the ws2812 interfacing code has been taken from
+ // https://github.com/hwhw/stm32-projects (Hans-Werner Hilse <hwhilse@gmail.com>)
+
+ // Speed measurement and logic is written by me (Florian Jung <flo@windfisch.org>)
+
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
@@ -32,7 +37,7 @@
 
 
 // maximum is at about 4000
-#define LED_COUNT 10 //0x200
+#define LED_COUNT 50 //0x200
 // minimum ID offset is 0x100 (first ID byte mustn't be 0x00)
 #define ID_OFFSET 0xA000
 
@@ -251,13 +256,13 @@ void tim1_up_isr(void)
 
 void tick_leds(void)
 {
-	for (int i=0; i<10; i++)
+	for (int i=0; i<LED_COUNT; i++)
 	{
-		int val = frequency_millihertz - i*1000;
+		int val = frequency_millihertz - i*10000/LED_COUNT;
 		val = val < 0 ? 0 : val;
 		val = val > 150 ? 150 : val;
 		val = val * 255 / 150;
-		led_data[i] = val << 8;
+		led_data[i] = (val << 8) | (val<<16) | val;
 	}
 }
 
