@@ -26,15 +26,34 @@
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/usart.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <errno.h>
 #include <string.h>
+
 
 // maximum is at about 4000
 #define LED_COUNT 10 //0x200
 // minimum ID offset is 0x100 (first ID byte mustn't be 0x00)
 #define ID_OFFSET 0xA000
 
-int _write(int file, char *ptr, int len);
+// allow printf() to use the USART
+int _write(int file, char *ptr, int len)
+{
+	int i;
+
+	if (file == STDOUT_FILENO || file == STDERR_FILENO) {
+		for (i = 0; i < len; i++) {
+			if (ptr[i] == '\n') {
+				usart_send_blocking(USART1, '\r');
+			}
+			usart_send_blocking(USART1, ptr[i]);
+		}
+		return i;
+	}
+	errno = EIO;
+	return -1;
+}
+
 
 static void clock_setup(void)
 {
@@ -52,33 +71,26 @@ static void clock_setup(void)
 	/* Enable DMA1 clock */
 	rcc_periph_clock_enable(RCC_DMA1);
 
-	rcc_periph_clock_enable(RCC_USART3);
+	rcc_periph_clock_enable(RCC_USART1);
 }
 
 static void uart_setup(void)
 {
-	/* Enable the USART3 interrupt. */
-	nvic_enable_irq(NVIC_USART3_IRQ);
-
-	/* setup GPIO: tx on PB10, rx on PB11 */
-	//gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ,
-	//	GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_USART3_TX);
-	gpio_set_mode(GPIOB, GPIO_MODE_INPUT,
-		GPIO_CNF_INPUT_FLOAT, GPIO_USART3_RX);
+	/* setup GPIO: tx on PA9 */
+	gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO9); // TX pin
 
         /* Setup UART parameters. */
-	usart_set_baudrate(USART3, 921600);
-	usart_set_databits(USART3, 8);
-	usart_set_stopbits(USART3, USART_STOPBITS_1);
-	usart_set_parity(USART3, USART_PARITY_NONE);
-	usart_set_flow_control(USART3, USART_FLOWCONTROL_NONE);
-	usart_set_mode(USART3, USART_MODE_RX); // no tx for now
-
-	/* Enable USART3 Receive interrupt. */
-	USART_CR1(USART3) |= USART_CR1_RXNEIE;
+	usart_set_baudrate(USART1, 115200);
+	usart_set_databits(USART1, 8);
+	usart_set_stopbits(USART1, USART_STOPBITS_1);
+	usart_set_parity(USART1, USART_PARITY_NONE);
+	usart_set_flow_control(USART1, USART_FLOWCONTROL_NONE);
+	usart_set_mode(USART1, USART_MODE_TX); // no tx for now
 
 	/* Finally enable the USART. */
-	usart_enable(USART3);
+	usart_enable(USART1);
+
+	printf("Hello world!\n");
 }
 
 #define TICK_NS (1000/72)
@@ -92,6 +104,9 @@ static void uart_setup(void)
 static uint8_t dma_data[DMA_SIZE];
 static volatile uint32_t led_data[LED_COUNT];
 static volatile uint32_t led_cur = 0;
+
+
+static uint32_t frequency_millihertz = 0;
 
 static void pwm_setup(void) {
 	/* Configure GPIOs: OUT=PA7 */
@@ -194,14 +209,6 @@ static void handle_cmd(uint8_t cmd) {
 	}
 }
 
-void usart3_isr(void)
-{
-        /* Check if we were called because of RXNE. */
-        if ((USART_SR(USART3) & USART_SR_RXNE) != 0) {
-                handle_cmd(usart_recv(USART3));
-        }
-}
-
 
 static void dma_int_enable(void) {
 	/* SPI1 TX on DMA1 Channel 3 */
@@ -253,9 +260,25 @@ void dma1_channel3_isr(void)
 	}
 }
 
+void tim1_cc_isr(void)
+{
+	timer_clear_flag(TIM1, TIM_SR_CC1IF);
+	printf("tim1_cc_isr %d %d\n", TIM1_CCR1, timer_get_flag(TIM1, TIM_SR_CC1OF));
+	frequency_millihertz = 1000*65536 / (uint32_t)TIM1_CCR1;
+	printf("%d mHz\n", frequency_millihertz);
+//timer_get_flag(TIM1, TIM_SR_CC1OF)
+}
 
+void tim1_up_isr(void)
+{
+	timer_clear_flag(TIM1, TIM_SR_UIF);
+	printf("tim1_up_isr, %d\n", timer_get_counter(TIM1));
+	// overflow
 
-void tick_leds(void)
+	frequency_millihertz = 0;
+}
+
+/*void tick_leds(void)
 {
 	static uint64_t frame = 0;
 	frame++;
@@ -277,6 +300,57 @@ void tick_leds(void)
 		led_data[i] = (col_g << 16) | (col_r << 8) | (col_b);
 	}
 
+}*/
+
+void tick_leds(void)
+{
+	for (int i=0; i<10; i++)
+	{
+		int val = frequency_millihertz - i*1000;
+		val = val < 0 ? 0 : val;
+		val = val > 150 ? 150 : val;
+		val = val * 255 / 150;
+		led_data[i] = val << 8;
+	}
+}
+
+static void timer_setup(void)
+{
+	rcc_periph_clock_enable(RCC_TIM1);
+	rcc_periph_reset_pulse(RST_TIM1);
+
+	/* Configure GPIOs: tacho in = PA8 */
+	gpio_set_mode(GPIOA, GPIO_MODE_INPUT,
+	    GPIO_CNF_INPUT_PULL_UPDOWN, GPIO_TIM1_CH1);
+	gpio_set(GPIOA, GPIO_TIM1_CH1);
+
+	timer_set_mode(TIM1, TIM_CR1_CKD_CK_INT_MUL_4, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
+	timer_disable_preload(TIM1);
+	timer_continuous_mode(TIM1);
+	timer_update_on_overflow(TIM1); // that means: generate update events *only* on overflows,
+	                                // not on e.g. reset through the trigger input.
+
+
+	timer_set_period(TIM1, 0xFFFF);
+	timer_set_prescaler(TIM1, 78000000L / 65536 - 1);
+
+	timer_ic_set_input(TIM1, TIM_IC1, TIM_IC_IN_TI1);
+	timer_ic_set_polarity(TIM1, TIM_IC1, TIM_IC_RISING);
+	timer_ic_set_filter(TIM1, TIM_IC1, TIM_IC_CK_INT_N_8);//TIM_IC_DTF_DIV_32_N_8);
+	timer_ic_enable(TIM1, TIM_IC1);
+
+	timer_slave_set_filter(TIM1, TIM_IC_CK_INT_N_8);
+	timer_slave_set_trigger(TIM1, TIM_SMCR_TS_TI1FP1); // trigger input := CH1
+	timer_slave_set_mode(TIM1, TIM_SMCR_SMS_RM); // timer reset on trigger input
+
+	nvic_enable_irq(NVIC_TIM1_UP_IRQ);
+	nvic_enable_irq(NVIC_TIM1_CC_IRQ);
+	timer_enable_irq(TIM1, TIM_DIER_UIE | TIM_DIER_CC1IE); // in fact, enable DMA on update
+
+	timer_enable_counter(TIM1);
+
+	nvic_set_priority(NVIC_TIM1_UP_IRQ, 0xf << 4); // Set lowest priority in order to not interfere
+	nvic_set_priority(NVIC_TIM1_CC_IRQ, 0xf << 4); // with the timing critical WS2812 driver
 }
 
 int main(void)
@@ -289,6 +363,7 @@ int main(void)
 	gpio_toggle(GPIOC, GPIO13);	/* LED on/off */
 
 	uart_setup();
+
 
 	memset(dma_data, 0, DMA_SIZE);
 	memset((void*)led_data, 0, LED_COUNT*sizeof(*led_data));
@@ -308,14 +383,17 @@ int main(void)
 	timer_dma(dma_data, DMA_SIZE);
 	pwm_setup();
 
+	timer_setup();
 	int i=0;
 	while (1) {
 		__asm__("wfe");
 		tick_leds();
-		if (i++ > 1000)
+		if (i++ > 40)
 		{
 			gpio_toggle(GPIOC, GPIO13);	/* LED on/off */
 			i=0;
+			//printf("%04x\n", gpio_port_read(GPIOA));
+			//printf("%d, %d\n", timer_get_counter(TIM1), timer_get_flag(TIM1, TIM_SR_CC1IF));
 		}
 	}
 }
