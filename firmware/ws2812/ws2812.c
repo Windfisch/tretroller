@@ -153,63 +153,6 @@ static void populate_dma_data(uint8_t *dma_data_bank) {
 	}
 }
 
-static void handle_cmd(uint8_t cmd) {
-	static enum {
-		STATE_WAITING,
-		STATE_GOT_ID1,
-		STATE_GOT_ID2,
-		STATE_GOT_COL1,
-		STATE_GOT_COL2,
-		STATE_GOT_COL3,
-		STATE_GOT_COL4,
-		STATE_GOT_COL5,
-	} cmd_state = STATE_WAITING;
-	static uint16_t id = 0;
-	static uint16_t col_r = 0;
-	static uint16_t col_g = 0;
-	static uint16_t col_b = 0;
-
-	gpio_toggle(GPIOC, GPIO13);	/* LED on/off */
-
-	switch(cmd_state) {
-	case STATE_WAITING:
-		id = cmd;
-		/* send a bunch of 0x00 to re-sync protocol */
-		if(id != 0x00)
-			cmd_state = STATE_GOT_ID1;
-		break;
-	case STATE_GOT_ID1:
-		id = (id << 8) + cmd;
-		cmd_state = STATE_GOT_ID2;
-		break;
-	case STATE_GOT_ID2:
-		col_r = cmd;
-		cmd_state = STATE_GOT_COL1;
-		break;
-	case STATE_GOT_COL1:
-		cmd_state = STATE_GOT_COL2;
-		break;
-	case STATE_GOT_COL2:
-		col_g = cmd;
-		cmd_state = STATE_GOT_COL3;
-		break;
-	case STATE_GOT_COL3:
-		cmd_state = STATE_GOT_COL4;
-		break;
-	case STATE_GOT_COL4:
-		col_b = cmd;
-		cmd_state = STATE_GOT_COL5;
-		break;
-	case STATE_GOT_COL5:
-		id -= ID_OFFSET;
-		if(id < LED_COUNT)
-			led_data[id] = (col_g << 16) | (col_r << 8) | (col_b);
-		cmd_state = STATE_WAITING;
-		break;
-	}
-}
-
-
 static void dma_int_enable(void) {
 	/* SPI1 TX on DMA1 Channel 3 */
 	nvic_set_priority(NVIC_DMA1_CHANNEL3_IRQ, 0);
