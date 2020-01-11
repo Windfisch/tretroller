@@ -260,11 +260,14 @@ void dma1_channel3_isr(void)
 	}
 }
 
+static bool overflow = true;
 void tim1_cc_isr(void)
 {
 	timer_clear_flag(TIM1, TIM_SR_CC1IF);
 	printf("tim1_cc_isr %d %d\n", TIM1_CCR1, timer_get_flag(TIM1, TIM_SR_CC1OF));
-	frequency_millihertz = 1000*65536 / (uint32_t)TIM1_CCR1;
+	if (!overflow)
+		frequency_millihertz = 1000*65536 / (uint32_t)TIM1_CCR1;
+	overflow = false;
 	printf("%d mHz\n", frequency_millihertz);
 //timer_get_flag(TIM1, TIM_SR_CC1OF)
 }
@@ -276,6 +279,7 @@ void tim1_up_isr(void)
 	// overflow
 
 	frequency_millihertz = 0;
+	overflow = true;
 }
 
 /*void tick_leds(void)
