@@ -27,12 +27,14 @@ Building and Flashing
 ---------------------
 
 ```
-git submodule update --init
-cd libopencm3 && make -j5 && cd..
+cd firmware
 
-cd ws2812
+git submodule update --init
+cd libopencm3 && make -j5 && cd ..
+
+cd src
 make
-stm32flash -w ws2812.bin /dev/ttyUSB0
+stm32flash -w tretroller.bin /dev/ttyUSB0
 ```
 
 For flashing, you need a USB-serial-converter. Connect its RX/TX pins to PA9/PA10.

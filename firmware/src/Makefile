@@ -1,11 +1,11 @@
-PROJECT = ws2812
+PROJECT = tretroller
 BUILD_DIR = bin
 
 #SHARED_DIR = ../my-common-code
-CFILES = ws2812.c
+CFILES = ws2812.c main.c tacho.c usart.c
 #AFILES = stuff.S
 LDLIBS = -lm
-CFLAGS += -DSTM32F1
+CFLAGS += -DSTM32F1 -std=c99 -pedantic-errors
 
 DEVICE=stm32f103c8t
 
