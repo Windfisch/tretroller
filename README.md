@@ -49,5 +49,5 @@ License
 The source code is licensed under the terms of the
 [3-clause BSD license](https://opensource.org/licenses/BSD-3-Clause).
 This project uses the [libopencm3](https://libopencm3.org/) library, which is
-licensed as [GPL3 or any later version](https://www.gnu.org/licenses/lgpl-3.0.en.html),
+licensed as [LGPL3 or any later version](https://www.gnu.org/licenses/lgpl-3.0.en.html),
 so same terms apply to the resulting binary.
