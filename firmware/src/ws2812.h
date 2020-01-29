@@ -19,7 +19,7 @@
  */
 
 // maximum is at about 4000
-#define LED_COUNT 50 //0x200
+#define LED_COUNT 130 //0x200
 
 extern volatile uint32_t led_data[LED_COUNT];
 

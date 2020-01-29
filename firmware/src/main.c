@@ -39,8 +39,6 @@
 #include "tacho.h"
 #include "usart.h"
 
-// maximum is at about 4000
-#define LED_COUNT 50 //0x200
 // minimum ID offset is 0x100 (first ID byte mustn't be 0x00)
 #define ID_OFFSET 0xA000
 
@@ -209,7 +207,7 @@ static inline int clamp_and_gamma(int val)
 	];
 }
 
-const double WHEEL_RADIUS_MM = 20;
+const double WHEEL_RADIUS_MM = 105/5.;
 const double WHEEL_CIRCUMFERENCE_MM = WHEEL_RADIUS_MM * 2 * 3.141592654;
 const double LED_DISTANCE_MM = 17.5;
 
@@ -218,8 +216,17 @@ const double LED_DISTANCE_MM = 17.5;
 const fixed_t WHEEL_CIRCUMFERENCE_LEDUNITS = (1<<SHIFT) * WHEEL_CIRCUMFERENCE_MM / LED_DISTANCE_MM;
 
 
+#define N_SIDE 11
+#define N_FRONT 5
+#define N_BOTTOM 26
+
 #define FPS 60
 #define FREQUENCY_FACTOR 1000 // frequency_millihertz / FREQUENCY_FACTOR = wheel frequency in hertz
+
+static int min(int a, int b)
+{
+	return a>b?b:a;
+}
 
 void tim2_isr(void)
 {
@@ -238,14 +245,23 @@ void tim2_isr(void)
 
 	fixed_t pos0 = distance * WHEEL_CIRCUMFERENCE_LEDUNITS / (FPS*FREQUENCY_FACTOR);
 
-	for (int i=1; i<LED_COUNT; i++)
+	for (int i=0; i<N_SIDE; i++)
+	{
+		led_data[i] = 0x000044;
+		led_data[i+N_SIDE+N_FRONT] = 0x440000;
+	}
+	for (int i=0; i<N_FRONT; i++)
+		led_data[i+N_SIDE] = ((t%60)>30 ? 20 : 0) | (slow_warning<<9);
+		//led_data[i+N_SIDE] = 0x00ff00;
+
+	for (int i=0; i<N_BOTTOM; i++)
 	{
 		fixed_t pos = (i << SHIFT) + pos0;
 		fixed_t r = 128 << SHIFT;
 		fixed_t g = 128 << SHIFT;
 		fixed_t b = 128 << SHIFT;
 
-		for (unsigned w=0; w<WAVE_COUNT; w++)
+		/*for (unsigned w=0; w<WAVE_COUNT; w++)
 		{
 			fixed_t wavepos = (waves[w].speed *t) / FPS;
 			int val = sini((SIN_PERIOD * (pos - wavepos)) / waves[w].wavelength);
@@ -254,12 +270,36 @@ void tim2_isr(void)
 			g += val * waves[w].g;
 			b += val * waves[w].b;
 		}
+		*/
 
+		switch ( (((((pos/30)>>SHIFT) % 3) + 3) % 3) )
+		{
+			case 0: r=g=0; b=255; break;
+			case 1: r=b=0; g=255; break;
+			case 2: g=b=0; r=255; break;
+			default:
+				r=g=b=64;
+		}
+
+		if (frequency_millihertz > 10000)
+		{
+			int bla = frequency_millihertz - 9000;
+			if (bla > 10000) bla = 10000;
+			r = min(255, bla*255 / 3333);
+			g = min(255, bla*255 / 6666);
+			b = min(255, bla*255 / 10000);
+		}
+		r <<= SHIFT;
+		g <<= SHIFT;
+		b <<= SHIFT;
 		
 		fixed_t mp = (pos / 50) % (1<<SHIFT);
-		int mask = ((mp < (1 << SHIFT) / 5) ?
-			sini( ((SIN_PERIOD * mp * 5)>>SHIFT) + SIN_PERIOD*1/4) / 2 + (1<<SHIFT)/2 :
-			(1<<SHIFT)) * 256 >> SHIFT;
+		//int mask = ((mp < (1 << SHIFT) / 5) ?
+		//	sini( ((SIN_PERIOD * mp * 5)>>SHIFT) + SIN_PERIOD*1/4) / 2 + (1<<SHIFT)/2 :
+		//	(1<<SHIFT)) * 256 >> SHIFT;
+		int mask = 256;
+		//int dist = 1 + min(i, N_BOTTOM-1-i);
+		//if (dist < 3) mask = 256 * dist / 4; else mask = 256;
 
 		r = r * mask / 256;
 		g = g * mask / 256;
@@ -270,10 +310,10 @@ void tim2_isr(void)
 		g = clamp_and_gamma((g/dim) >> SHIFT);
 		b = clamp_and_gamma((b/dim) >> SHIFT);
 		
-		led_data[i] = (r << 8) | (g<<16) | b;
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = (r << 8) | (g<<16) | b;
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = (r << 8) | (g<<16) | b;
 	}
 
-	led_data[0] = ((t%60)>30 ? 20 : 0) | (slow_warning<<9);
 
 
 	if (timer_get_flag(TIM2, TIM_SR_UIF))
