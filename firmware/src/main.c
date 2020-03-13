@@ -207,7 +207,7 @@ static inline int clamp_and_gamma(int val)
 	];
 }
 
-const double WHEEL_RADIUS_MM = 105/5.;
+const double WHEEL_RADIUS_MM = 105.;
 const double WHEEL_CIRCUMFERENCE_MM = WHEEL_RADIUS_MM * 2 * 3.141592654;
 const double LED_DISTANCE_MM = 17.5;
 

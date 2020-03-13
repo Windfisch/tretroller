@@ -32,20 +32,103 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/cm3/nvic.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
 #include "tacho.h"
 
 volatile uint32_t frequency_millihertz = 0;
 static bool overflow = true;
 
+#define N_MAGNETS 5
+static uint32_t backlog[N_MAGNETS];
+static const uint32_t DISTANCES[N_MAGNETS] = /*{65560094, 64208045, 66349096, 64597411, 66965353}*/ {65541458, 65907201, 65708318, 66206400, 64316621} ;
+
+static int phase = 0;
+
+static void put_backlog(uint32_t value)
+{
+	for (int i=1; i<N_MAGNETS; i++)
+		backlog[i-1] = backlog[i];
+	backlog[N_MAGNETS-1] = value;
+
+	/*printf("backlog: ");
+	for (int i=0; i<N_MAGNETS; i++)
+		printf("%ld, ", backlog[i]);
+	printf("\n");*/
+}
+
+static int detect_phase(void)
+{
+	uint32_t timestamps[N_MAGNETS] = {0};
+	for (int i=1; i<N_MAGNETS; i++)
+		timestamps[i] = timestamps[i-1] + backlog[i-1];
+
+	int best_offset = -2;
+	int best_reldiff = INT_MAX;
+	int secondbest_offset = -2;
+	int secondbest_reldiff = INT_MAX;
+
+
+	for (int phase_offset=0; phase_offset<N_MAGNETS; phase_offset++)
+	{
+		//printf("with phase_offset = %d: ", phase_offset);
+		int32_t freqs[N_MAGNETS]; // millihertz
+		for (int i=0; i<N_MAGNETS; i++)
+			freqs[i] = DISTANCES[(i+phase_offset)%N_MAGNETS] / backlog[i];
+
+		int32_t reldiff_max = 0;
+		for (int i=0; i<N_MAGNETS; i++)
+		{
+			int32_t diff = freqs[i] - (freqs[0] + ((int64_t)timestamps[i]) * (freqs[N_MAGNETS-1] - freqs[0]) / timestamps[N_MAGNETS-1]);
+			int32_t reldiff = 1000 * diff / freqs[0];
+			//printf("%ld, ", reldiff);
+			if (abs(reldiff) > reldiff_max)
+				reldiff_max = abs(reldiff);
+		}
+		//printf(" => %ld\n", reldiff_max);
+
+		if (reldiff_max <= best_reldiff)
+		{
+			secondbest_reldiff = best_reldiff;
+			secondbest_offset = best_offset;
+			best_reldiff = reldiff_max;
+			best_offset = phase_offset;
+		}
+		else if (reldiff_max <= secondbest_reldiff)
+		{
+			secondbest_reldiff = reldiff_max;
+			secondbest_offset = phase_offset;
+		}
+	}
+
+	int confidence = 100 * (secondbest_reldiff - best_reldiff) / (best_reldiff+1); // relative difference between best and second best in percent
+	printf("best phase offset: %d, confidence: %d\n", best_offset, confidence);
+	if (confidence > 150)
+		return (best_offset+N_MAGNETS-1) % N_MAGNETS;
+	else
+		return -1;
+}
+
 /** Tacho rising edge interrupt */
 void tim1_cc_isr(void)
 {
 	timer_clear_flag(TIM1, TIM_SR_CC1IF);
+	printf("TIM1_CCR1 = %lu\n", TIM1_CCR1);
+
+	put_backlog(TIM1_CCR1);
+	phase = (phase+1) % N_MAGNETS;
+	int detected_phase = detect_phase();
+	if (detected_phase != -1 && detected_phase != phase)
+	{
+		printf("PHASE JUMP DETECTED! expected %d, detected %d\n", phase, detected_phase);
+		phase = detected_phase;
+	}
+	
 	//printf("tim1_cc_isr %d %d\n", TIM1_CCR1, timer_get_flag(TIM1, TIM_SR_CC1OF));
 	if (!overflow)
-		frequency_millihertz = 1000*65536 / (uint32_t)TIM1_CCR1;
+		frequency_millihertz = DISTANCES[phase] / (uint32_t)TIM1_CCR1;
 	overflow = false;
-	//printf("%d mHz\n", frequency_millihertz);
+	printf("%d mHz\n", frequency_millihertz);
 }
 
 /** Timer overflow interrupt */

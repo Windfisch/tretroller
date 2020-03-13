@@ -43,6 +43,31 @@ For flashing, you need a USB-serial-converter. Connect its RX/TX pins to PA9/PA1
 (And don't forget GND.)
 
 
+Learning the magnet distance
+----------------------------
+
+It is difficult to glue the magnets perfectly equally spaced and failure to do so
+results in a noisy speed estimate. This problem is illustrated in the graphics below,
+which show a continuously spinning wheel which is slowly decelerating due to friction.
+The colored dots signify which magnet caused the current reading.
+
+![uncompensated](img/uncompensated.png) ![compensated](img/compensated.png)
+
+Easily, one can recognize a repeating jumpy pattern in the left, uncompensated graph,
+while the compensation produces a quite smooth graph on the right.
+
+To calibrate the magnet distance, do the following:
+
+Connect the battery and an UART adapter, then run the following command to log the
+debug output: `miniterm.py /dev/ttyUSB0 115200 | tee log.txt`
+
+Then, execute `python learn.py log.txt 5`, where 5 is the number of magnets. Note that
+this tool discards the first full wheel revolution (in fact, it discards one more pulse),
+assuming a steady wheel motion after this.
+
+The last line of the output looks similar to `[64306564, 65027442, 66437832, 65699997, 66208162]`.
+Copy this array to `DISTANCES` in `tacho.c` and adjust `N_MAGNETS` in this file.
+
 License
 -------
 
