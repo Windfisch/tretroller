@@ -126,7 +126,7 @@ void tim1_cc_isr(void)
 	
 	//printf("tim1_cc_isr %d %d\n", TIM1_CCR1, timer_get_flag(TIM1, TIM_SR_CC1OF));
 	if (!overflow)
-		frequency_millihertz = DISTANCES[phase] / (uint32_t)TIM1_CCR1;
+		frequency_millihertz = DISTANCES[phase] / (uint32_t)TIM1_CCR1 / N_MAGNETS;
 	overflow = false;
 	printf("%d mHz\n", frequency_millihertz);
 }
