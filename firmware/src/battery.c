@@ -45,6 +45,8 @@ static int voltages[21] = {4200, 4000, 3950, 3890, 3840, 3800, 3760, 3730, 3700,
 #define N_VOLTAGES 21
 #define N_INTERVALS (N_VOLTAGES-1)
 
+/** Try to figure out the battery percentage using some LiPo voltage curve from the internet.
+  * This is quite inaccurate, but sufficient */
 static int batt_calc_percent(int millivolts, int n_cells)
 {
 	int millivolts_per_cell = millivolts / n_cells;

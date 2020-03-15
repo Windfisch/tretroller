@@ -39,10 +39,14 @@
 volatile uint32_t frequency_millihertz = 0;
 static bool overflow = true;
 
-#define N_MAGNETS 5
-static uint32_t backlog[N_MAGNETS];
-static const uint32_t DISTANCES[N_MAGNETS] = /*{65560094, 64208045, 66349096, 64597411, 66965353}*/ {65541458, 65907201, 65708318, 66206400, 64316621} ;
 
+/* CONFIGURATION SECTION
+ * change these values to account for your magnet configuration. see learn.py and the README */
+#define N_MAGNETS 5
+static const uint32_t DISTANCES[N_MAGNETS] = /*{65560094, 64208045, 66349096, 64597411, 66965353}*/ {65541458, 65907201, 65708318, 66206400, 64316621} ;
+/* end of configuration section */
+
+static uint32_t backlog[N_MAGNETS];
 static int phase = 0;
 
 static void put_backlog(uint32_t value)

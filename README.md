@@ -22,7 +22,7 @@ The firmware will auto-detect the number of LiPo cells. The number of cells is d
 while the current battery estimate is displayed on both sides.
 
 **Battery protection**: If the estimated battery cell voltage drops below 3V, the lights are turned off except for
-the front lights, which are dimmed.
+the front lights, which are dimmed. This reduces power consumption to approx. 50mA.
 
 
 Hardware Setup

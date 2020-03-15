@@ -36,6 +36,7 @@
 
 static int conversion_is_running = 0;
 
+/** Initializes the ADC. Must be called before using this module */
 void adc_init(void)
 {
 	rcc_periph_clock_enable(RCC_GPIOA);
@@ -74,6 +75,7 @@ static void start_conversion()
 	conversion_is_running = 1;
 }
 
+// needed for noise reduction
 static int count = 0;
 static int sum = 0;
 #define N_SAMPLES 100
@@ -86,6 +88,8 @@ void adc_poll(void)
 		{
 			conversion_is_running = 0;
 			int raw_value = adc_read_regular(ADC1);
+
+			// average N_SAMPLES samples to reduce noise
 			sum += raw_value;
 			count++;
 
