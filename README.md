@@ -11,6 +11,19 @@ STM32F103 microcontroller board is used to control everything.
 stolen and adapted from https://github.com/hwhw/stm32-projects @ `a1de68cbee09631836c205106fbc2fd64d2a93ec`.
 The [original readme has been preserved here](firmware/readme_orig.md)
 
+Features
+--------
+
+Hall-sensor based **speed measurement** with software compensation for inaccurately placed magnets enable
+light effects synchronized to the driving speed.
+
+**Battery monitoring**: Connect two resistors as follows: `Battery (+) -----[100kOhm]----- PA0 -----[10kOhm]----- GND`.
+The firmware will auto-detect the number of LiPo cells. The number of cells is displayed as white dots on the front,
+while the current battery estimate is displayed on both sides.
+
+**Battery protection**: If the estimated battery cell voltage drops below 3V, the lights are turned off except for
+the front lights, which are dimmed.
+
 
 Hardware Setup
 --------------
