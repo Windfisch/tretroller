@@ -235,39 +235,23 @@ static int min(int a, int b)
 	return a>b?b:a;
 }
 
-void tim2_isr(void)
+/* requires exactly 5 front lights */
+int show_cell(int batt_cells, int i)
 {
-	static int slow_warning = 120;
-	if (slow_warning > 0) slow_warning--;
-
-	static int t = 0;
-	t++;
-
-	static int distance = 0; // increases by 60000 per wheel revolution
-	distance += frequency_millihertz;
-
-	static int batt_percent = 50;
-	int batt_empty = 1;// batt_percent <= 0;
-
-	timer_clear_flag(TIM2, TIM_SR_UIF);
-
-	gpio_toggle(GPIOC, GPIO13);	/* LED on/off */
-
-	adc_poll();
-	if (t % 100 == 0)
+	int result = 0;
+	switch (batt_cells)
 	{
-		if (adc_value > 0)
-		{
-			int batt_millivolts = ADC_VREF_MILLIVOLTS * adc_value * (BAT_R1+BAT_R2) / ADC_MAX / BAT_R1;
-			batt_percent = batt_get_percent(batt_millivolts);
-			printf("adc value: %d = %d mV -> %d %%\n", adc_value, batt_millivolts, batt_percent);
-		}
+		case -1: result = 0; break;
+		case 1: result = i==2; break;
+		case 2: result = (i==1 || i==3); break;
+		case 3: result = (i==0 || i==2 | i==4); break;
+		default: result = (i<batt_cells);
 	}
+	return result;
+}
 
-
-	fixed_t pos0 = distance * WHEEL_CIRCUMFERENCE_LEDUNITS / (FPS*FREQUENCY_FACTOR);
-
-
+void ledpattern_bat_empty(volatile uint32_t led_data[], int t)
+{
 	/* "batt empty" flash pattern:
 	      1      2     N=3
 	   --X-X----X-X----X-X-------------------------------------X-X----X-X----X-X--...
@@ -290,38 +274,38 @@ void tim2_isr(void)
 
 	for (int i=0; i<N_SIDE; i++)
 	{
-		int highlight = i <= (batt_percent / 10);
-
-		if (batt_empty)
-		{
-			led_data[i] = (i%3==0)?batt_empty_color:0;
-			led_data[N_SIDE+N_FRONT+N_SIDE-1-i] = (i%3==0) ? batt_empty_color : 0;
-		}
-		else
-		{
-			led_data[i] = highlight ? 0x008844 : 0x000022;
-			led_data[N_SIDE+N_SIDE+N_FRONT-1-i] = highlight ? 0x448800 : 0x220000;
-		}
+		led_data[i] = (i%3==0)?batt_empty_color:0;
+		led_data[N_SIDE+N_FRONT+N_SIDE-1-i] = (i%3==0) ? batt_empty_color : 0;
 	}
 	for (int i=0; i<N_FRONT; i++)
 	{
-		int show_cell = 0;
-		switch (batt_cells)
-		{
-			case -1: show_cell = 0; break;
-			case 1: show_cell = i==2; break;
-			case 2: show_cell = (i==1 || i==3); break;
-			case 3: show_cell = (i==0 || i==2 | i==4); break;
-			default: show_cell = (i<batt_cells);
-		}
-
-		if (batt_empty)
-			led_data[i+N_SIDE] = (show_cell ? batt_empty_color : 0);
-		else
-			led_data[i+N_SIDE] = ((t%60)>30 ? 20 : 0) | (slow_warning<<9) | (show_cell ? 0x808080 : 0);
+		led_data[i+N_SIDE] = (show_cell(batt_cells, i) ? batt_empty_color : 0);
 	}
-		//led_data[i+N_SIDE] = 0x00ff00;
+	for (int i=0; i<N_BOTTOM; i++)
+	{
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = 0;
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = 0;
+	}
+}
 
+void ledpattern_bat_and_slow_info(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+{
+	for (int i=0; i<N_SIDE; i++)
+	{
+		int highlight = i <= (batt_percent / 10);
+
+		led_data[i] = highlight ? 0x008844 : 0x000022;
+		led_data[N_SIDE+N_SIDE+N_FRONT-1-i] = highlight ? 0x448800 : 0x220000;
+	}
+	for (int i=0; i<N_FRONT; i++)
+	{
+
+		led_data[i+N_SIDE] = ((t%60)>30 ? 20 : 0) | (slow_warning<<9) | (show_cell(batt_cells, i) ? 0x808080 : 0);
+	}
+}
+
+void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, int pos0)
+{
 	for (int i=0; i<N_BOTTOM; i++)
 	{
 		fixed_t pos = (i << SHIFT) + pos0;
@@ -377,20 +361,65 @@ void tim2_isr(void)
 		r = clamp_and_gamma((r/dim) >> SHIFT);
 		g = clamp_and_gamma((g/dim) >> SHIFT);
 		b = clamp_and_gamma((b/dim) >> SHIFT);
-
-		if (batt_empty)
-			r=g=b=0;
 		
 		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = (r << 8) | (g<<16) | b;
 		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = (r << 8) | (g<<16) | b;
 	}
+}
 
+void tim2_isr(void)
+{
+	/* slow_warning is usually 0. It's set to >0, when the ISR hasn't finished in time */
+	static int slow_warning = 120;
+	if (slow_warning > 0) slow_warning--;
 
+	/* frame counter */
+	static int t = 0;
+	t++;
 
-	if (timer_get_flag(TIM2, TIM_SR_UIF))
+	static int distance = 0; // increases by 60000 per wheel revolution
+	distance += frequency_millihertz;
+
+	static int batt_percent = 50;
+	int batt_empty = batt_percent <= 0;
+
+	timer_clear_flag(TIM2, TIM_SR_UIF);
+
+	gpio_toggle(GPIOC, GPIO13);	/* LED on/off */
+
+	adc_poll();
+	if (t % 100 == 0)
 	{
-		slow_warning = 120;
+		if (adc_value > 0)
+		{
+			int batt_millivolts = ADC_VREF_MILLIVOLTS * adc_value * (BAT_R1+BAT_R2) / ADC_MAX / BAT_R1;
+			batt_percent = batt_get_percent(batt_millivolts);
+			printf("adc value: %d = %d mV -> %d %%\n", adc_value, batt_millivolts, batt_percent);
+		}
 	}
+
+
+	fixed_t pos0 = distance * WHEEL_CIRCUMFERENCE_LEDUNITS / (FPS*FREQUENCY_FACTOR);
+
+	if (batt_empty)
+	{
+		// sets both front/side and bottom leds
+		ledpattern_bat_empty(led_data, t);
+	}
+	else
+	{
+		// set the front/side leds
+		ledpattern_bat_and_slow_info(led_data, t, batt_cells, batt_percent, slow_warning);
+
+		// set the bottom leds
+		ledpattern_bottom_3color(led_data, t, pos0);
+	}
+
+
+
+	// must be at the end of the ISR
+	if (timer_get_flag(TIM2, TIM_SR_UIF))
+		slow_warning = 120;
 }
 
 int main(void)
