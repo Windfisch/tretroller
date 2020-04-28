@@ -43,7 +43,7 @@ static bool overflow = true;
 /* CONFIGURATION SECTION
  * change these values to account for your magnet configuration. see learn.py and the README */
 #define N_MAGNETS 5
-static const uint32_t DISTANCES[N_MAGNETS] = /*{65560094, 64208045, 66349096, 64597411, 66965353}*/ {65541458, 65907201, 65708318, 66206400, 64316621} ;
+static const uint32_t DISTANCES[N_MAGNETS] = {69340993, 61923605, 64606495, 65695792, 66113112};
 /* end of configuration section */
 
 static uint32_t backlog[N_MAGNETS];

@@ -247,7 +247,7 @@ void tim2_isr(void)
 	distance += frequency_millihertz;
 
 	static int batt_percent = 50;
-	int batt_empty = batt_percent <= 0;
+	int batt_empty = 1;// batt_percent <= 0;
 
 	timer_clear_flag(TIM2, TIM_SR_UIF);
 
@@ -267,14 +267,35 @@ void tim2_isr(void)
 
 	fixed_t pos0 = distance * WHEEL_CIRCUMFERENCE_LEDUNITS / (FPS*FREQUENCY_FACTOR);
 
+
+	/* "batt empty" flash pattern:
+	      1      2     N=3
+	   --X-X----X-X----X-X-------------------------------------X-X----X-X----X-X--...
+	     \____________________________________________________/
+	     \_____/                     BATT_FLASH_PERIOD_LONG
+	BATT_FLASH_PERIOD_SHORT
+	*/
+	#define BATT_FLASH_PERIOD_LONG 2000
+	#define BATT_FLASH_PERIOD_SHORT 100
+	#define BATT_FLASH_N 2
+	int batt_empty_flash = 0;
+	for (int i=0; i<BATT_FLASH_N; i++)
+	{
+		int t0 = (t - i*BATT_FLASH_PERIOD_SHORT) % BATT_FLASH_PERIOD_LONG;
+		int t1 = (t - i*BATT_FLASH_PERIOD_SHORT - 8) % BATT_FLASH_PERIOD_LONG;
+		if (t0 < 1 || t1 < 2)
+			batt_empty_flash = 1;
+	}
+	int batt_empty_color = batt_empty_flash ? 0x0000ff : 0x000100;
+
 	for (int i=0; i<N_SIDE; i++)
 	{
 		int highlight = i <= (batt_percent / 10);
 
 		if (batt_empty)
 		{
-			led_data[i] = (i%3==0)?0x000100:0;
-			led_data[N_SIDE+N_FRONT+N_SIDE-1-i] = (i%3==0) ? 0x000100 : 0;
+			led_data[i] = (i%3==0)?batt_empty_color:0;
+			led_data[N_SIDE+N_FRONT+N_SIDE-1-i] = (i%3==0) ? batt_empty_color : 0;
 		}
 		else
 		{
@@ -295,7 +316,7 @@ void tim2_isr(void)
 		}
 
 		if (batt_empty)
-			led_data[i+N_SIDE] = (show_cell ? 0x000100 : 0);
+			led_data[i+N_SIDE] = (show_cell ? batt_empty_color : 0);
 		else
 			led_data[i+N_SIDE] = ((t%60)>30 ? 20 : 0) | (slow_warning<<9) | (show_cell ? 0x808080 : 0);
 	}
