@@ -35,6 +35,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "color.h"
 #include "ws2812.h"
 #include "tacho.h"
 #include "usart.h"
@@ -187,33 +188,6 @@ struct wave_t waves[] = { {10<<SHIFT, 0<<SHIFT, 64,0,0}, {17<<SHIFT, 1<<SHIFT, 0
 #define WAVE_COUNT (sizeof(waves)/sizeof(*waves))
 
 
-const uint8_t gamma8[] = {
-    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,
-    1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,
-    2,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  5,  5,  5,
-    5,  6,  6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9, 10,
-   10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16,
-   17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 24, 24, 25,
-   25, 26, 27, 27, 28, 29, 29, 30, 31, 32, 32, 33, 34, 35, 35, 36,
-   37, 38, 39, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 50,
-   51, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67, 68,
-   69, 70, 72, 73, 74, 75, 77, 78, 79, 81, 82, 83, 85, 86, 87, 89,
-   90, 92, 93, 95, 96, 98, 99,101,102,104,105,107,109,110,112,114,
-  115,117,119,120,122,124,126,127,129,131,133,135,137,138,140,142,
-  144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
-  177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
-  215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
-
-static inline int clamp_and_gamma(int val)
-{
-	return gamma8[
-		val < 0 ? 0 :
-		val > 255 ? 255 :
-		val
-	];
-}
-
 const double WHEEL_RADIUS_MM = 105.;
 const double WHEEL_CIRCUMFERENCE_MM = WHEEL_RADIUS_MM * 2 * 3.141592654;
 const double LED_DISTANCE_MM = 17.5;
@@ -270,7 +244,7 @@ void ledpattern_bat_empty(volatile uint32_t led_data[], int t)
 		if (t0 < 1 || t1 < 2)
 			batt_empty_flash = 1;
 	}
-	int batt_empty_color = batt_empty_flash ? 0x0000ff : 0x000100;
+	int batt_empty_color = batt_empty_flash ? 0xff0000 : 0x000100;
 
 	for (int i=0; i<N_SIDE; i++)
 	{
@@ -288,18 +262,22 @@ void ledpattern_bat_empty(volatile uint32_t led_data[], int t)
 	}
 }
 
+
+
 void ledpattern_bat_and_slow_info(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
 {
+	/* battery state on the sides */
 	for (int i=0; i<N_SIDE; i++)
 	{
 		int highlight = i <= (batt_percent / 10);
 
-		led_data[i] = highlight ? 0x008844 : 0x000022;
-		led_data[N_SIDE+N_SIDE+N_FRONT-1-i] = highlight ? 0x448800 : 0x220000;
+		led_data[i] = highlight ? hsv2(t*30+i*300, 1000, 1000) : hsv2(t*2+i*300, 300, 300);
+		led_data[N_SIDE+N_SIDE+N_FRONT-1-i] = highlight ? hsv2(t*30+i*300 + 1800, 1000, 1000)  : hsv2(t*2+i*300 + 1800, 300, 300) ;
 	}
+
+	/* battery cells and slowness warning on the front */
 	for (int i=0; i<N_FRONT; i++)
 	{
-
 		led_data[i+N_SIDE] = ((t%60)>30 ? 20 : 0) | (slow_warning<<9) | (show_cell(batt_cells, i) ? 0x808080 : 0);
 	}
 }

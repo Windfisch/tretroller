@@ -2,7 +2,7 @@ PROJECT = tretroller
 BUILD_DIR = bin
 
 #SHARED_DIR = ../my-common-code
-CFILES = ws2812.c main.c tacho.c usart.c adc.c battery.c
+CFILES = ws2812.c main.c tacho.c usart.c adc.c battery.c color.c
 #AFILES = stuff.S
 LDLIBS = -lm
 CFLAGS += -DSTM32F1 -std=c99 -pedantic-errors
