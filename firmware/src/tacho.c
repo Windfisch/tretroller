@@ -106,7 +106,7 @@ static int detect_phase(void)
 	}
 
 	int confidence = 100 * (secondbest_reldiff - best_reldiff) / (best_reldiff+1); // relative difference between best and second best in percent
-	printf("best phase offset: %d, confidence: %d\n", best_offset, confidence);
+	//printf("best phase offset: %d, confidence: %d\n", best_offset, confidence);
 	if (confidence > 150)
 		return (best_offset+N_MAGNETS-1) % N_MAGNETS;
 	else
@@ -124,7 +124,7 @@ void tim1_cc_isr(void)
 	int detected_phase = detect_phase();
 	if (detected_phase != -1 && detected_phase != phase)
 	{
-		printf("PHASE JUMP DETECTED! expected %d, detected %d\n", phase, detected_phase);
+		//printf("PHASE JUMP DETECTED! expected %d, detected %d\n", phase, detected_phase);
 		phase = detected_phase;
 	}
 	
@@ -132,7 +132,7 @@ void tim1_cc_isr(void)
 	if (!overflow)
 		frequency_millihertz = DISTANCES[phase] / (uint32_t)TIM1_CCR1 / N_MAGNETS;
 	overflow = false;
-	printf("%d mHz\n", frequency_millihertz);
+	//printf("%d mHz\n", frequency_millihertz);
 }
 
 /** Timer overflow interrupt */

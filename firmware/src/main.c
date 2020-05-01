@@ -389,7 +389,7 @@ void tim2_isr(void)
 		{
 			int batt_millivolts = ADC_VREF_MILLIVOLTS * adc_value * (BAT_R1+BAT_R2) / ADC_MAX / BAT_R1;
 			batt_percent = batt_get_percent(batt_millivolts);
-			printf("adc value: %d = %d mV -> %d %%\n", adc_value, batt_millivolts, batt_percent);
+			//printf("adc value: %d = %d mV -> %d %%\n", adc_value, batt_millivolts, batt_percent);
 		}
 	}
 
