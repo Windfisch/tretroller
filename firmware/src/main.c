@@ -153,6 +153,12 @@ static int sini(unsigned val)
 	}
 }
 
+int clamp(int val, int lo, int hi)
+{
+	if (val < lo) return lo;
+	if (val > hi) return hi;
+	return val;
+}
 static void animation_init(void)
 {
 	rcc_periph_clock_enable(RCC_TIM2);
@@ -245,7 +251,7 @@ void ledpattern_bat_empty(volatile uint32_t led_data[], int t)
 		if (t0 < 1 || t1 < 2)
 			batt_empty_flash = 1;
 	}
-	int batt_empty_color = batt_empty_flash ? 0xff0000 : 0x000100;
+	int batt_empty_color = batt_empty_flash ? 0xff0000 : 0x000100; // bright blue flash / dim red glow
 
 	for (int i=0; i<N_SIDE; i++)
 	{
@@ -267,13 +273,19 @@ void ledpattern_bat_empty(volatile uint32_t led_data[], int t)
 
 void ledpattern_bat_and_slow_info(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
 {
+	/* use this many LEDs for battery display on the side strips */
+	#define N_BAT_LEDS N_SIDE
+	
+	/* smooth the battery percentage over time */
+	static int batt_percent_buf = 0; // hundreths of a percent.
+	batt_percent_buf = batt_percent_buf + (batt_percent * 100 - batt_percent_buf) / 20;
+
 	/* battery state on the sides */
 	for (int i=0; i<N_SIDE; i++)
 	{
-		int highlight = i <= (batt_percent / 10);
-
-		led_data[i] = highlight ? hsv2(t*30+i*300, 1000, 1000) : hsv2(t*2+i*300, 300, 300);
-		led_data[N_SIDE+N_SIDE+N_FRONT-1-i] = highlight ? hsv2(t*30+i*300 + 1800, 1000, 1000)  : hsv2(t*2+i*300 + 1800, 300, 300) ;
+		int value = clamp(batt_percent_buf / 10 * N_BAT_LEDS - i*1000, 0, 1000);
+		led_data[i] = hsv2(-t*30+i*300, 1000, value);
+		led_data[N_SIDE+N_SIDE+N_FRONT-1-i] = hsv2(-t*30+i*300 + 1800, 1000, value);
 	}
 
 	/* battery cells and slowness warning on the front */
@@ -283,27 +295,13 @@ void ledpattern_bat_and_slow_info(volatile uint32_t led_data[], int t, int batt_
 	}
 }
 
-void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, int pos0)
+void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, fixed_t pos0)
 {
 	for (int i=0; i<N_BOTTOM; i++)
 	{
 		fixed_t pos = (i << SHIFT) + pos0;
-		fixed_t r = 128 << SHIFT;
-		fixed_t g = 128 << SHIFT;
-		fixed_t b = 128 << SHIFT;
-
-		/*for (unsigned w=0; w<WAVE_COUNT; w++)
-		{
-			fixed_t wavepos = (waves[w].speed *t) / FPS;
-			int val = sini((SIN_PERIOD * (pos - wavepos)) / waves[w].wavelength);
-
-			r += val * waves[w].r;
-			g += val * waves[w].g;
-			b += val * waves[w].b;
-		}
-		*/
-
-		switch ( (((((pos/30)>>SHIFT) % 3) + 3) % 3) )
+		int r,g,b;
+		switch ((((pos/30)>>SHIFT) % 3) )
 		{
 			case 0: r=g=0; b=255; break;
 			case 1: r=b=0; g=255; break;
@@ -312,37 +310,49 @@ void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, int pos0)
 				r=g=b=64;
 		}
 
-		if (frequency_millihertz > 10000)
-		{
-			int bla = frequency_millihertz - 9000;
-			if (bla > 10000) bla = 10000;
-			r = min(255, bla*255 / 3333);
-			g = min(255, bla*255 / 6666);
-			b = min(255, bla*255 / 10000);
-		}
-		r <<= SHIFT;
-		g <<= SHIFT;
-		b <<= SHIFT;
-		
-		fixed_t mp = (pos / 50) % (1<<SHIFT);
-		//int mask = ((mp < (1 << SHIFT) / 5) ?
-		//	sini( ((SIN_PERIOD * mp * 5)>>SHIFT) + SIN_PERIOD*1/4) / 2 + (1<<SHIFT)/2 :
-		//	(1<<SHIFT)) * 256 >> SHIFT;
-		int mask = 256;
-		//int dist = 1 + min(i, N_BOTTOM-1-i);
-		//if (dist < 3) mask = 256 * dist / 4; else mask = 256;
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = RGBg(r,g,b);
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = RGBg(r,g,b);
+	}
+}
 
-		r = r * mask / 256;
-		g = g * mask / 256;
-		b = b * mask / 256;
 
-		const int dim = 1;
-		r = clamp_and_gamma((r/dim) >> SHIFT);
-		g = clamp_and_gamma((g/dim) >> SHIFT);
-		b = clamp_and_gamma((b/dim) >> SHIFT);
-		
-		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = (r << 8) | (g<<16) | b;
-		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = (r << 8) | (g<<16) | b;
+void ledpattern_bottom_rainbow(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+{
+	for (int i=0; i<N_BOTTOM; i++)
+	{
+		fixed_t pos = (i << SHIFT) + pos0;
+		int hue = (pos*120)>>SHIFT;
+
+		// begin to desaturate the color at a speed of 50 leds/sec. Fully desaturate at 50+50 leds/sec.
+		int saturation = 1000 - clamp( ((velocity - (50<<SHIFT) ) * 1000 / 50) >> SHIFT, 0, 1000);
+		uint32_t color = hsv2(hue, saturation, 1000);
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = color;
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = color;
+	}
+}
+
+void ledpattern_bottom_color(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+{
+	static fixed_t velocity_saved = 0;
+
+	if (velocity > 0) velocity_saved = velocity;
+
+	int base_hue = t*(3600/600) / FPS; // one full color revolution per minute
+	int velo_hue = 3600 * (velocity_saved / 200) >> SHIFT; // 200 ledunits per sec makes one full color revolution
+
+	int saturation = 1000 - clamp((500 * velocity_saved / 150) >> SHIFT, 0, 1000);
+
+	//int instant_value = (velocity >> SHIFT) > 5 ? 1000 : 0;
+	int instant_value = clamp((1000 * (velocity - (10<<SHIFT)) / 90) >> SHIFT, 0, 1000);
+	static int value_smooth = 0;
+	value_smooth += (instant_value - value_smooth) / 30;
+	
+	uint32_t color = hsv2(base_hue + velo_hue, saturation, value_smooth);
+
+	for (int i=0; i<N_BOTTOM; i++)
+	{
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = color;
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = color;
 	}
 }
 
@@ -353,7 +363,7 @@ void tim2_isr(void)
 	if (slow_warning > 0) slow_warning--;
 
 	/* frame counter */
-	static int t = 0;
+	static int t = 1000; // the offset does not really matter. however, we're subtracting from t at some places, and we don't want these calculations to become negative.
 	t++;
 
 	cm_disable_interrupts();
@@ -365,7 +375,7 @@ void tim2_isr(void)
 
 	fixed_t velocity = ((fixed_t)frequency_millihertz_copy) * WHEEL_CIRCUMFERENCE_LEDUNITS / FREQUENCY_FACTOR; // = ledunits per second
 
-	static int batt_percent = 50;
+	static int batt_percent = -1;
 	int batt_empty = batt_percent <= 0;
 
 	timer_clear_flag(TIM2, TIM_SR_UIF);
@@ -397,7 +407,8 @@ void tim2_isr(void)
 		ledpattern_bat_and_slow_info(led_data, t, batt_cells, batt_percent, slow_warning);
 
 		// set the bottom leds
-		ledpattern_bottom_3color(led_data, t, pos0);
+		ledpattern_bottom_rainbow(led_data, t, pos0, velocity);
+		//ledpattern_bottom_color(led_data, t, pos0, velocity);
 	}
 
 
