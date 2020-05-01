@@ -32,6 +32,7 @@
 #include <libopencm3/stm32/dma.h>
 #include <libopencm3/cm3/nvic.h>
 #include <libopencm3/stm32/timer.h>
+#include <libopencm3/cm3/cortex.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -355,8 +356,14 @@ void tim2_isr(void)
 	static int t = 0;
 	t++;
 
+	cm_disable_interrupts();
+	uint32_t frequency_millihertz_copy = frequency_millihertz;
+	cm_enable_interrupts();
+
 	static int distance = 0; // increases by 60000 per wheel revolution
-	distance += frequency_millihertz;
+	distance += frequency_millihertz_copy;
+
+	fixed_t velocity = ((fixed_t)frequency_millihertz_copy) * WHEEL_CIRCUMFERENCE_LEDUNITS / FREQUENCY_FACTOR; // = ledunits per second
 
 	static int batt_percent = 50;
 	int batt_empty = batt_percent <= 0;
