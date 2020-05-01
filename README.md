@@ -31,9 +31,9 @@ Hardware Setup
 You need a strong 5V power supply (1-5 ampere, the LEDs consume lots of power), a
 blue pill board (or any other STM32F103 board, actually), and a WS2812b LED strip
 (preferably a waterproof one, depending on what you want to do with it).
-I use a LM2596 DC/DC-converter to generate 5V from a 3-cell LiPo battery.
+I use a LM2596 DC/DC-converter to generate 5V @ max. 3A from a 3-cell LiPo battery.
 
-Connect the 5V power supply and the GND with the blue pilland with the LED strip.
+Connect the 5V power supply and the GND with the blue pill and with the LED strip.
 The LED strip's data in pin goes to PA7, and the tacho input is at PA8.
 I use an open-collector hall sensor (A3144, deprecated) with an 1k pull-up.
 
