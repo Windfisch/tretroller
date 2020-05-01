@@ -66,7 +66,7 @@ void adc_init(void)
 
 int adc_value = -1;
 
-static void start_conversion()
+static void start_conversion(void)
 {
 	uint8_t channel_array[16];
 	channel_array[0] = ADC_CHANNEL;
@@ -100,11 +100,11 @@ void adc_poll(void)
 				sum = 0;
 			}
 
-			start_conversion(ADC_CHANNEL);
+			start_conversion();
 		}
 	}
 	else
 	{
-		start_conversion(ADC_CHANNEL);
+		start_conversion();
 	}
 }

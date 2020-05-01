@@ -69,7 +69,6 @@ static int detect_phase(void)
 
 	int best_offset = -2;
 	int best_reldiff = INT_MAX;
-	int secondbest_offset = -2;
 	int secondbest_reldiff = INT_MAX;
 
 
@@ -94,14 +93,12 @@ static int detect_phase(void)
 		if (reldiff_max <= best_reldiff)
 		{
 			secondbest_reldiff = best_reldiff;
-			secondbest_offset = best_offset;
 			best_reldiff = reldiff_max;
 			best_offset = phase_offset;
 		}
 		else if (reldiff_max <= secondbest_reldiff)
 		{
 			secondbest_reldiff = reldiff_max;
-			secondbest_offset = phase_offset;
 		}
 	}
 
