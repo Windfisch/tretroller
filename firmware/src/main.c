@@ -114,8 +114,13 @@ void tim2_isr(void)
 
 	fixed_t velocity = ((fixed_t)frequency_millihertz_copy) * WHEEL_CIRCUMFERENCE_LEDUNITS / FREQUENCY_FACTOR; // = ledunits per second
 
-	static int batt_percent = -1;
-	int batt_empty = batt_percent <= 0;
+	static int batt_percent = 1;
+	static int batt_empty = 0;
+	/* hysteresis to avoid flickering between the normal and the empty state */
+	if (!batt_empty)
+		batt_empty = batt_percent <= 0;
+	else
+		batt_empty = batt_percent <= 3;
 
 	timer_clear_flag(TIM2, TIM_SR_UIF);
 
