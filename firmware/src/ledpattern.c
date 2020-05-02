@@ -1,6 +1,19 @@
 #include "math.h"
 #include "ledpattern.h"
 #include "color.h"
+#include "noise.h"
+#include <stdio.h>
+
+static int snake_value(int currpos, int snakehead, int snakelen, int fadeout, int full)
+{
+	if (snakehead <= currpos && currpos <= snakehead+snakelen)
+	{
+		int dist = min(currpos - snakehead, snakehead+snakelen-currpos);
+		return min( (full*dist/fadeout) >> SHIFT  , full);
+	}
+	else
+		return 0;
+}
 
 /* requires exactly 5 front lights */
 static int show_cell(int batt_cells, int i)
@@ -79,6 +92,46 @@ void ledpattern_bat_and_slow_info(volatile uint32_t led_data[], int t, int batt_
 	}
 }
 
+void ledpattern_front_knightrider(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+{
+	(void) batt_cells;
+	(void) batt_percent;
+	(void) slow_warning;
+
+	const int N_SLOTS = N_SIDE + 1 + N_SIDE;
+	const int FRONT_LED = 0;
+
+	for (int i=0; i<N_FRONT; i++)
+		if (i != FRONT_LED)
+			led_data[i+N_SIDE] = 0;
+
+	const int fulllength = ((2*N_SLOTS)<<SHIFT);
+	const int snakelen = 7 << SHIFT;
+	int snakehead = (15 * ( ((fixed_t)t) << SHIFT) / FPS) % fulllength;
+
+	for (int i=0; i<N_SLOTS; i++)
+	{
+		int led;
+		if (i < N_SIDE)
+			led = i;
+		else if (i == N_SIDE)
+			led = N_SIDE+FRONT_LED;
+		else
+			led = N_SIDE+N_FRONT + i - N_SIDE-1;
+
+		int curr_pos = i << SHIFT;
+
+		int value = max( max(
+			snake_value(curr_pos, snakehead, snakelen, 3, 1000),
+			snake_value( ((2*N_SLOTS)<<SHIFT) - curr_pos, snakehead, snakelen, 3, 1000) ),
+			snake_value(curr_pos, snakehead-fulllength, snakelen, 3, 1000)
+			);
+		int saturation = 1000 - (max(0, value-500))/3;
+
+		led_data[led] = hsv2(0, saturation, value);
+	}
+}
+
 void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, fixed_t pos0)
 {
 	(void) t; // unused
@@ -101,6 +154,78 @@ void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, fixed_t pos0)
 	}
 }
 
+#define NUM(x) (((fixed_t)x)<<SHIFT)
+#define ONE (1<<SHIFT)
+
+void ledpattern_bottom_water(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+{
+	(void) pos0;
+	(void) velocity;
+
+	for (int i=0; i<N_BOTTOM; i++)
+	{
+		// lava
+		int hue = 400 + ((200 * fractal_noise( NUM(i) / 7, NUM(t)/60, ONE/2, ONE/4, ONE/8 )) >> SHIFT);
+		int value = 600 + ((400*fractal_noise( ((i+41)<<SHIFT) / 20, (t<<SHIFT)/300, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
+		int saturation = 900 + ((100*fractal_noise( ((i+129)<<SHIFT) / 9, (t<<SHIFT)/150, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
+		
+		// water
+		//int hue = 2100 + ((600 * fractal_noise( NUM(i) / 7, NUM(t)/60, ONE/2, ONE/4, ONE/8 )) >> SHIFT);
+		//int value = 750 + ((250*fractal_noise( ((i+41)<<SHIFT) / 20, (t<<SHIFT)/300, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
+		//int saturation = 500 + ((500*fractal_noise( ((i+129)<<SHIFT) / 9, (t<<SHIFT)/150, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
+		// begin to desaturate the color at a speed of 50 leds/sec. Fully desaturate at 50+50 leds/sec.
+		uint32_t color = hsv2(hue, saturation, value);
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = color;
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = color;
+	}
+}
+
+void ledpattern_bottom_snake(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+{
+	const int fulllength = ((2*N_BOTTOM)<<SHIFT);
+	const int snakelen = 10 << SHIFT;
+	int snakehead = (30 * ( ((fixed_t)t) << SHIFT) / FPS) % fulllength;
+
+	for (int i=0; i<2*N_BOTTOM; i++)
+	{
+		int hue = 3600 * t / FPS / 60;
+		int saturation = 300;
+
+		int currpos = (i<<SHIFT);
+
+		int value = 0;
+		
+		if (snakehead <= currpos && currpos <= snakehead+snakelen)
+		{
+			int dist = min(currpos - snakehead, snakehead+snakelen-currpos);
+			value = min( (1000*dist/2) >> SHIFT  , 1000);
+		}
+		if (snakehead - fulllength <= currpos && currpos <= snakehead+snakelen-fulllength)
+		{
+			int dist = min(currpos - snakehead + fulllength, snakehead+snakelen-currpos - fulllength);
+			value = min( (1000*dist/2) >> SHIFT, 1000);
+		}
+
+		uint32_t color = hsv2(hue, saturation, value);
+		led_data[N_SIDE+N_FRONT+N_SIDE+i] = color;
+	}
+}
+
+
+void ledpattern_bottom_position_color(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+{
+	(void) t;
+	(void) velocity;
+
+	for (int i=0; i<N_BOTTOM; i++)
+	{
+		int hue = (pos0*12)>>SHIFT;
+		// begin to desaturate the color at a speed of 50 leds/sec. Fully desaturate at 50+50 leds/sec.
+		uint32_t color = hsv2(hue, 1000, 1000);
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = color;
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = color;
+	}
+}
 
 void ledpattern_bottom_rainbow(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
 {
@@ -119,7 +244,7 @@ void ledpattern_bottom_rainbow(volatile uint32_t led_data[], int t, fixed_t pos0
 	}
 }
 
-void ledpattern_bottom_color(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+void ledpattern_bottom_velocity_color(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
 {
 	(void) pos0; // unused
 

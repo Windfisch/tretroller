@@ -36,6 +36,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "noise.h"
 #include "color.h"
 #include "ws2812.h"
 #include "tacho.h"
@@ -143,10 +144,13 @@ void tim2_isr(void)
 	{
 		// set the front/side leds
 		ledpattern_bat_and_slow_info(led_data, t, batt_cells, batt_percent, slow_warning);
+		//ledpattern_front_knightrider(led_data, t, batt_cells, batt_percent, slow_warning);
 
 		// set the bottom leds
-		ledpattern_bottom_rainbow(led_data, t, pos0, velocity);
-		//ledpattern_bottom_color(led_data, t, pos0, velocity);
+		ledpattern_bottom_snake(led_data, t, pos0, velocity);
+		//ledpattern_bottom_water(led_data, t, pos0, velocity);
+		//ledpattern_bottom_rainbow(led_data, t, pos0, velocity);
+		//ledpattern_bottom_position_color(led_data, t, pos0, velocity);
 	}
 
 
@@ -165,10 +169,12 @@ int main(void)
 		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);
 	gpio_toggle(GPIOC, GPIO13);	/* LED on/off */
 
+
 	uart_setup();
 	ws2812_init();
 	tacho_init();
 	adc_init();
+	noise_init();
 
 	animation_init();
 
