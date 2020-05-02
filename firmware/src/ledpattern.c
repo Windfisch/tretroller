@@ -194,17 +194,11 @@ void ledpattern_bottom_snake(volatile uint32_t led_data[], int t, fixed_t pos0, 
 		int currpos = (i<<SHIFT);
 
 		int value = 0;
-		
+	
 		if (snakehead <= currpos && currpos <= snakehead+snakelen)
-		{
-			int dist = min(currpos - snakehead, snakehead+snakelen-currpos);
-			value = min( (1000*dist/2) >> SHIFT  , 1000);
-		}
+			value = snake_value(currpos, snakehead, snakelen, 2, 1000);
 		if (snakehead - fulllength <= currpos && currpos <= snakehead+snakelen-fulllength)
-		{
-			int dist = min(currpos - snakehead + fulllength, snakehead+snakelen-currpos - fulllength);
-			value = min( (1000*dist/2) >> SHIFT, 1000);
-		}
+			value = snake_value(currpos, snakehead-fulllength, snakelen, 2, 1000);
 
 		uint32_t color = hsv2(hue, saturation, value);
 		led_data[N_SIDE+N_FRONT+N_SIDE+i] = color;
