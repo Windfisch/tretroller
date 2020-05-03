@@ -8,21 +8,23 @@ and lots of WS2812b led strips.
 A [cheap blue pill](https://hackaday.com/2017/03/30/the-2-32-bit-arduino-with-debugging/)
 STM32F103 microcontroller board is used to control everything.
 
-stolen and adapted from https://github.com/hwhw/stm32-projects @ `a1de68cbee09631836c205106fbc2fd64d2a93ec`.
-The [original readme has been preserved here](firmware/readme_orig.md)
-
 Features
 --------
 
 Hall-sensor based **speed measurement** with software compensation for inaccurately placed magnets enable
 light effects synchronized to the driving speed.
 
+8 different bottom **light effects** and two front/side lighting programs. Switch the bottom lights
+with a short button press. A longer (0.25s - 1s) press will change the front/side program and its
+brightness. Holding the button for more than a second performs the **brightness selection**.
+
 **Battery monitoring**: Connect two resistors as follows: `Battery (+) -----[100kOhm]----- PA0 -----[10kOhm]----- GND`.
 The firmware will auto-detect the number of LiPo cells. The number of cells is displayed as white dots on the front,
 while the current battery estimate is displayed on both sides.
 
 **Battery protection**: If the estimated battery cell voltage drops below 3V, the lights are turned off except for
-the front lights, which are dimmed. This reduces power consumption to approx. 50mA.
+the front lights, which are dimmed and sometimes flash. This reduces power consumption to approx. 50mA.
+
 
 
 Hardware Setup
@@ -36,6 +38,8 @@ I use a LM2596 DC/DC-converter to generate 5V @ max. 3A from a 3-cell LiPo batte
 Connect the 5V power supply and the GND with the blue pill and with the LED strip.
 The LED strip's data in pin goes to PA7, and the tacho input is at PA8.
 I use an open-collector hall sensor (A3144, deprecated) with an 1k pull-up.
+A push-button shorts PB10 to +3.3V for user input. (For convenience, you can tie
+the PB10-side terminal of that switch to the BOOT0 pin, too.)
 
 
 Building and Flashing
@@ -89,3 +93,10 @@ The source code is licensed under the terms of the
 This project uses the [libopencm3](https://libopencm3.org/) library, which is
 licensed as [LGPL3 or any later version](https://www.gnu.org/licenses/lgpl-3.0.en.html),
 so same terms apply to the resulting binary.
+
+Credits
+-------
+
+The WS2812b code was stolen and adapted from https://github.com/hwhw/stm32-projects @ `a1de68cbee09631836c205106fbc2fd64d2a93ec`.
+The [original readme has been preserved here](firmware/readme_orig.md).
+
