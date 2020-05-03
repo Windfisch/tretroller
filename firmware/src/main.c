@@ -60,6 +60,7 @@ static void clock_setup(void)
 {
 	rcc_clock_setup_in_hse_8mhz_out_72mhz();
 	rcc_periph_clock_enable(RCC_GPIOC); // LED
+	rcc_periph_clock_enable(RCC_GPIOB); // button
 }
 
 
@@ -73,7 +74,7 @@ static void animation_init(void)
 	timer_disable_preload(TIM2);
 	timer_continuous_mode(TIM2);
 	timer_set_period(TIM2, 0xFFFF); // full scale
-	timer_set_prescaler(TIM2, 72000000LL / (60 * 65536LL) - 1); // 60 fps update rate FIXME
+	timer_set_prescaler(TIM2, 72000000LL / (FPS * 65536LL) - 1); // 60 fps update rate FIXME
 
 	// Configure the interrupts
 	nvic_enable_irq(NVIC_TIM2_IRQ);
@@ -109,7 +110,7 @@ void tim2_isr(void)
 	uint32_t frequency_millihertz_copy = frequency_millihertz;
 	cm_enable_interrupts();
 
-	static int distance = 0; // increases by 60000 per wheel revolution
+	static int distance = 0; // increases by FPS*1000 = 60000 per wheel revolution
 	distance += frequency_millihertz_copy;
 
 	fixed_t velocity = ((fixed_t)frequency_millihertz_copy) * WHEEL_CIRCUMFERENCE_LEDUNITS / FREQUENCY_FACTOR; // = ledunits per second
@@ -138,6 +139,53 @@ void tim2_isr(void)
 	}
 
 
+	/* handle the user button */
+	static int button_debounce = 0;
+	int button_pressed_raw = !!gpio_get(GPIOB, GPIO10);
+	button_debounce = (button_debounce << 1) | button_pressed_raw;
+	int button_pressed = (button_debounce & 0x0F) != 0;
+
+	static int brightness = 1000;
+	static int brightness_direction = -1;
+	static int button_press_time = 0;
+	static int ledpattern_bottom_idx = 0;
+	static int ledpattern_front_idx = 0;
+
+	if (button_pressed)
+	{
+		if (button_press_time == 0)
+			brightness_direction = -1;
+
+		button_press_time++;
+
+		if (button_press_time >= 2*FPS)
+		{
+			brightness += 1000 / 3 / FPS * brightness_direction;
+			if (brightness >= 1000) brightness_direction = -1;
+			if (brightness <= 0) brightness_direction = +1;
+			brightness = clamp(brightness, 0, 1000);
+		}
+
+		if (t % 10 == 0)
+			printf("%d\n", brightness);
+	}
+	else if (button_press_time > 0) // release event
+	{
+		if (button_press_time < FPS) // < 1sec?
+		{
+			printf("switch ledpattern\n");
+			ledpattern_bottom_idx = (ledpattern_bottom_idx + 1) % N_BOTTOM_PATTERNS;
+		}
+		else if (button_press_time < 2*FPS)
+		{
+			printf("switch frontpattern\n");
+			ledpattern_front_idx = (ledpattern_front_idx + 1) % N_FRONT_PATTERNS;
+		}
+
+		button_press_time = 0;
+	}
+
+
 	fixed_t pos0 = distance * WHEEL_CIRCUMFERENCE_LEDUNITS / (FPS*FREQUENCY_FACTOR);
 
 	if (batt_empty)
@@ -148,13 +196,15 @@ void tim2_isr(void)
 	else
 	{
 		// set the front/side leds
-		ledpattern_bat_and_slow_info(led_data, t, batt_cells, batt_percent, slow_warning);
+		//ledpattern_front_bat_and_slow_info(led_data, t, batt_cells, batt_percent, slow_warning);
 		//ledpattern_front_knightrider(led_data, t, batt_cells, batt_percent, slow_warning);
+		ledpatterns_front[ledpattern_front_idx](led_data, t, batt_cells, batt_percent, slow_warning);
 
 		// set the bottom leds
-		ledpattern_bottom_snake(led_data, t, pos0, velocity);
+		//ledpattern_bottom_snake(led_data, t, pos0, velocity);
 		//ledpattern_bottom_water(led_data, t, pos0, velocity);
 		//ledpattern_bottom_rainbow(led_data, t, pos0, velocity);
+		ledpatterns_bottom[ledpattern_bottom_idx](led_data, t, pos0, velocity);
 		//ledpattern_bottom_position_color(led_data, t, pos0, velocity);
 	}
 
@@ -173,6 +223,11 @@ int main(void)
 	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
 		      GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);
 	gpio_toggle(GPIOC, GPIO13);	/* LED on/off */
+
+	// button
+	gpio_set_mode(GPIOB, GPIO_MODE_INPUT,
+		      GPIO_CNF_INPUT_PULL_UPDOWN, GPIO10);
+	gpio_clear(GPIOB, GPIO10); /* pull-down */
 
 
 	uart_setup();

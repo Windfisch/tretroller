@@ -68,7 +68,7 @@ void ledpattern_bat_empty(volatile uint32_t led_data[], int t, int batt_cells)
 	}
 }
 
-void ledpattern_bat_and_slow_info(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+static void ledpattern_front_bat_and_slow_info_brightness(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning, int brightness)
 {
 	/* use this many LEDs for battery display on the side strips */
 	#define N_BAT_LEDS N_SIDE
@@ -80,19 +80,36 @@ void ledpattern_bat_and_slow_info(volatile uint32_t led_data[], int t, int batt_
 	/* battery state on the sides */
 	for (int i=0; i<N_SIDE; i++)
 	{
-		int value = clamp(batt_percent_buf / 10 * N_BAT_LEDS - i*1000, 0, 1000);
+		int value = clamp(batt_percent_buf / 10 * N_BAT_LEDS - i*1000, 0, 1000) * brightness / 1000;
 		led_data[i] = hsv2(-t*30+i*300, 1000, value);
 		led_data[N_SIDE+N_SIDE+N_FRONT-1-i] = hsv2(-t*30+i*300 + 1800, 1000, value);
 	}
 
 	/* battery cells and slowness warning on the front */
 	for (int i=0; i<N_FRONT; i++)
-	{
+	{ // TODO brightness
 		led_data[i+N_SIDE] = ((t%60)>30 ? 20 : 0) | (slow_warning<<9) | (show_cell(batt_cells, i) ? 0x808080 : 0);
 	}
 }
 
-void ledpattern_front_knightrider(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+void ledpattern_front_bat_and_slow_info(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+{
+	ledpattern_front_bat_and_slow_info_brightness(led_data, t, batt_cells, batt_percent, slow_warning, 1000);
+}
+static void ledpattern_front_bat_and_slow_info2(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+{
+	ledpattern_front_bat_and_slow_info_brightness(led_data, t, batt_cells, batt_percent, slow_warning, 750);
+}
+static void ledpattern_front_bat_and_slow_info3(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+{
+	ledpattern_front_bat_and_slow_info_brightness(led_data, t, batt_cells, batt_percent, slow_warning, 500);
+}
+static void ledpattern_front_bat_and_slow_info4(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+{
+	ledpattern_front_bat_and_slow_info_brightness(led_data, t, batt_cells, batt_percent, slow_warning, 250);
+}
+
+static void ledpattern_front_knightrider_brightness(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning, int brightness)
 {
 	(void) batt_cells;
 	(void) batt_percent;
@@ -128,13 +145,31 @@ void ledpattern_front_knightrider(volatile uint32_t led_data[], int t, int batt_
 			);
 		int saturation = 1000 - (max(0, value-500))/3;
 
-		led_data[led] = hsv2(0, saturation, value);
+		led_data[led] = hsv2(0, saturation, value * brightness / 1000);
 	}
 }
 
-void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, fixed_t pos0)
+void ledpattern_front_knightrider(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+{
+	ledpattern_front_knightrider_brightness(led_data, t, batt_cells, batt_percent, slow_warning, 1000);
+}
+void ledpattern_front_knightrider2(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+{
+	ledpattern_front_knightrider_brightness(led_data, t, batt_cells, batt_percent, slow_warning, 750);
+}
+void ledpattern_front_knightrider3(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+{
+	ledpattern_front_knightrider_brightness(led_data, t, batt_cells, batt_percent, slow_warning, 500);
+}
+void ledpattern_front_knightrider4(volatile uint32_t led_data[], int t, int batt_cells, int batt_percent, int slow_warning)
+{
+	ledpattern_front_knightrider_brightness(led_data, t, batt_cells, batt_percent, slow_warning, 250);
+}
+
+void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
 {
 	(void) t; // unused
+	(void) velocity;
 
 	for (int i=0; i<N_BOTTOM; i++)
 	{
@@ -265,3 +300,22 @@ void ledpattern_bottom_velocity_color(volatile uint32_t led_data[], int t, fixed
 	}
 }
 
+ledpattern_bottom_t ledpatterns_bottom[N_BOTTOM_PATTERNS] = {
+	ledpattern_bottom_rainbow,
+	ledpattern_bottom_3color,
+	ledpattern_bottom_water,
+	ledpattern_bottom_snake,
+	ledpattern_bottom_position_color,
+	ledpattern_bottom_velocity_color
+};
+
+ledpattern_front_t ledpatterns_front[N_FRONT_PATTERNS] = {
+	ledpattern_front_bat_and_slow_info,
+	ledpattern_front_bat_and_slow_info2,
+	ledpattern_front_bat_and_slow_info3,
+	ledpattern_front_bat_and_slow_info4,
+	ledpattern_front_knightrider,
+	ledpattern_front_knightrider2,
+	ledpattern_front_knightrider3,
+	ledpattern_front_knightrider4
+};
