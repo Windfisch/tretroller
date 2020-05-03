@@ -171,7 +171,6 @@ void ledpattern_front_knightrider4(volatile uint32_t led_data[], int t, int batt
 
 void ledpattern_bottom_dots(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness)
 {
-	(void) t; // unused
 	(void) velocity;
 
 	const int DOT_DISTANCE = (15 << SHIFT) + (17<<SHIFT)/41;
@@ -187,8 +186,8 @@ void ledpattern_bottom_dots(volatile uint32_t led_data[], int t, fixed_t pos0, f
 	for (int i=0; i<N_BOTTOM; i++)
 	{
 		fixed_t pos = (i << SHIFT) + pos0;
-		int hue = (pos / DOT_DISTANCE) * 1481;
-		fixed_t wobble = (wobble_amount * sini(((long long int)t) *SIN_PERIOD * (7000+hue)/100000 / FPS )*2/ONE);
+		int hue = ((pos / DOT_DISTANCE) * 1481) % 3600;
+		fixed_t wobble = (wobble_amount * sini( (  ((long long int)t) * SIN_PERIOD * (7000+hue)/100000 / FPS)%SIN_PERIOD )*2/ONE);
 		fixed_t pos_wrapped = pos % DOT_DISTANCE;
 		int value = max(
 			snake_value(pos_wrapped, -wobble, DOT_SIZE, DOT_FADEOUT, 1000),
@@ -230,7 +229,7 @@ void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, fixed_t pos0,
 
 #define NUM(x) (((fixed_t)x)<<SHIFT)
 
-void ledpattern_bottom_water(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness)
+void ledpattern_bottom_lava(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness)
 {
 	(void) pos0;
 	(void) velocity;
@@ -246,6 +245,31 @@ void ledpattern_bottom_water(volatile uint32_t led_data[], int t, fixed_t pos0, 
 		//int hue = 2100 + ((600 * fractal_noise( NUM(i) / 7, NUM(t)/60, ONE/2, ONE/4, ONE/8 )) >> SHIFT);
 		//int value = 750 + ((250*fractal_noise( ((i+41)<<SHIFT) / 20, (t<<SHIFT)/300, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
 		//int saturation = 500 + ((500*fractal_noise( ((i+129)<<SHIFT) / 9, (t<<SHIFT)/150, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
+
+		// begin to desaturate the color at a speed of 50 leds/sec. Fully desaturate at 50+50 leds/sec.
+		uint32_t color = hsv2(hue, saturation, value*brightness/1000);
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = color;
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = color;
+	}
+}
+
+void ledpattern_bottom_water(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness)
+{
+	(void) pos0;
+	(void) velocity;
+
+	for (int i=0; i<N_BOTTOM; i++)
+	{
+		// lava
+		//int hue = 400 + ((200 * fractal_noise( NUM(i) / 7, NUM(t)/60, ONE/2, ONE/4, ONE/8 )) >> SHIFT);
+		//int value = 600 + ((400*fractal_noise( ((i+41)<<SHIFT) / 20, (t<<SHIFT)/300, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
+		//int saturation = 900 + ((100*fractal_noise( ((i+129)<<SHIFT) / 9, (t<<SHIFT)/150, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
+		
+		// water
+		int hue = 2100 + ((600 * fractal_noise( NUM(i) / 7, NUM(t)/60, ONE/2, ONE/4, ONE/8 )) >> SHIFT);
+		int value = 750 + ((250*fractal_noise( ((i+41)<<SHIFT) / 20, (t<<SHIFT)/300, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
+		int saturation = 500 + ((500*fractal_noise( ((i+129)<<SHIFT) / 9, (t<<SHIFT)/150, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
+
 		// begin to desaturate the color at a speed of 50 leds/sec. Fully desaturate at 50+50 leds/sec.
 		uint32_t color = hsv2(hue, saturation, value*brightness/1000);
 		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = color;
@@ -262,7 +286,7 @@ void ledpattern_bottom_snake(volatile uint32_t led_data[], int t, fixed_t pos0, 
 	for (int i=0; i<2*N_BOTTOM; i++)
 	{
 		int hue = 3600 * t / FPS / 60;
-		int saturation = 300;
+		int saturation = 500;
 
 		int currpos = (i<<SHIFT);
 
@@ -319,7 +343,7 @@ void ledpattern_bottom_velocity_color(volatile uint32_t led_data[], int t, fixed
 
 	if (velocity > 0) velocity_saved = velocity;
 
-	int base_hue = t*(3600/600) / FPS; // one full color revolution per minute
+	int base_hue = t*(3600/600) / FPS; // one full color revolution per 10 minutes
 	int velo_hue = 3600 * (velocity_saved / 200) >> SHIFT; // 200 ledunits per sec makes one full color revolution
 
 	int saturation = 1000 - clamp((500 * velocity_saved / 150) >> SHIFT, 0, 1000);
@@ -343,6 +367,7 @@ ledpattern_bottom_t ledpatterns_bottom[N_BOTTOM_PATTERNS] = {
 	ledpattern_bottom_dots,
 	ledpattern_bottom_3color,
 	ledpattern_bottom_water,
+	ledpattern_bottom_lava,
 	ledpattern_bottom_snake,
 	ledpattern_bottom_position_color,
 	ledpattern_bottom_velocity_color

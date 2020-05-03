@@ -15,7 +15,7 @@ void ledpattern_bottom_water(volatile uint32_t led_data[], int t, fixed_t pos0, 
 void ledpattern_bottom_snake(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness);
 
 typedef void (*ledpattern_bottom_t)(volatile uint32_t[], int, fixed_t, fixed_t, int);
-#define N_BOTTOM_PATTERNS 7
+#define N_BOTTOM_PATTERNS 8
 extern ledpattern_bottom_t ledpatterns_bottom[N_BOTTOM_PATTERNS];
 
 typedef void (*ledpattern_front_t)(volatile uint32_t[], int , int, int, int);

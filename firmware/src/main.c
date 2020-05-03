@@ -149,13 +149,10 @@ void tim2_isr(void)
 	static int brightness_direction = -1;
 	static int button_press_time = 0;
 	static int ledpattern_bottom_idx = 0;
-	static int ledpattern_front_idx = 0;
+	static int ledpattern_front_idx = 2;
 
 	if (button_pressed)
 	{
-		if (button_press_time == 0)
-			brightness_direction = -1;
-
 		button_press_time++;
 
 		if (button_press_time >= FPS)
