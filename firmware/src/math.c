@@ -74,21 +74,21 @@ static uint16_t sin_valuetable[1024] =
 #define SIN_PERIOD 4096
 int sini(unsigned val)
 {
-	val = val % 4096;
+	val = val % SIN_PERIOD;
 
-	if (val < 2048) // positive half-wave
+	if (val < SIN_PERIOD/2) // positive half-wave
 	{
-		if (val < 1024)
+		if (val < SIN_PERIOD/4)
 			return sin_valuetable[val] << SHIFT >> 10;
 		else
-			return sin_valuetable[2047-val] << SHIFT >> 10;
+			return sin_valuetable[SIN_PERIOD/2-1-val] << SHIFT >> 10;
 	}
 	else
 	{ // negative half-wave
-		if (val < 3072)
-			return -sin_valuetable[val-2048] << SHIFT >> 10;
+		if (val < 3*SIN_PERIOD/4)
+			return -sin_valuetable[val-SIN_PERIOD/2] << SHIFT >> 10;
 		else
-			return -sin_valuetable[4095-val] << SHIFT >> 10;
+			return -sin_valuetable[SIN_PERIOD-1-val] << SHIFT >> 10;
 	}
 }
 
