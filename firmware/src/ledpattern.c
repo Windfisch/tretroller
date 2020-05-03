@@ -88,7 +88,10 @@ static void ledpattern_front_bat_and_slow_info_brightness(volatile uint32_t led_
 	/* battery cells and slowness warning on the front */
 	for (int i=0; i<N_FRONT; i++)
 	{ // TODO brightness
-		led_data[i+N_SIDE] = ((t%60)>30 ? 20 : 0) | (slow_warning<<9) | (show_cell(batt_cells, i) ? 0x808080 : 0);
+		if (show_cell(batt_cells, i))
+			led_data[i+N_SIDE] = hsv2(0,0, brightness/2);
+		else
+			led_data[i+N_SIDE] = hsv2(2400 + 1200 * slow_warning / 120, (t%60)>30 ? 1000 : 0, brightness / 4);
 	}
 }
 
@@ -166,7 +169,43 @@ void ledpattern_front_knightrider4(volatile uint32_t led_data[], int t, int batt
 	ledpattern_front_knightrider_brightness(led_data, t, batt_cells, batt_percent, slow_warning, 250);
 }
 
-void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+void ledpattern_bottom_dots(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness)
+{
+	(void) t; // unused
+	(void) velocity;
+
+	const int DOT_DISTANCE = (15 << SHIFT) + (17<<SHIFT)/41;
+	const int DOT_SIZE = 7 << SHIFT;
+	const int DOT_FADEOUT = 3;
+	const int FADEOUT_ZONE = 7;
+	
+	static fixed_t velo_smooth = 0;
+	velo_smooth += (velocity - velo_smooth) / 10;
+
+	fixed_t wobble_amount = ONE - clamp(velo_smooth, 0, ONE);
+
+	for (int i=0; i<N_BOTTOM; i++)
+	{
+		fixed_t pos = (i << SHIFT) + pos0;
+		int hue = (pos / DOT_DISTANCE) * 1481;
+		fixed_t wobble = (wobble_amount * sini(((long long int)t) *SIN_PERIOD * (7000+hue)/100000 / FPS )*2/ONE);
+		fixed_t pos_wrapped = pos % DOT_DISTANCE;
+		int value = max(
+			snake_value(pos_wrapped, -wobble, DOT_SIZE, DOT_FADEOUT, 1000),
+			snake_value(pos_wrapped -wobble+ DOT_DISTANCE, 0, DOT_SIZE, DOT_FADEOUT, 1000)
+		);
+
+		value = value * snake_value(i<<SHIFT, FADEOUT_ZONE, (N_BOTTOM<<SHIFT)-2*FADEOUT_ZONE, FADEOUT_ZONE, 1000) / 1000;
+
+		uint32_t color = hsv2(hue, 700, value*brightness/1000 );
+
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = color;
+		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = color;
+	}
+	
+}
+
+void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness)
 {
 	(void) t; // unused
 	(void) velocity;
@@ -177,9 +216,9 @@ void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, fixed_t pos0,
 		int r,g,b;
 		switch ((((pos/30)>>SHIFT) % 3) )
 		{
-			case 0: r=g=0; b=255; break;
-			case 1: r=b=0; g=255; break;
-			case 2: g=b=0; r=255; break;
+			case 0: r=g=0; b=255*brightness/1000; break;
+			case 1: r=b=0; g=255*brightness/1000; break;
+			case 2: g=b=0; r=255*brightness/1000; break;
 			default:
 				r=g=b=64;
 		}
@@ -190,9 +229,8 @@ void ledpattern_bottom_3color(volatile uint32_t led_data[], int t, fixed_t pos0,
 }
 
 #define NUM(x) (((fixed_t)x)<<SHIFT)
-#define ONE (1<<SHIFT)
 
-void ledpattern_bottom_water(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+void ledpattern_bottom_water(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness)
 {
 	(void) pos0;
 	(void) velocity;
@@ -209,13 +247,13 @@ void ledpattern_bottom_water(volatile uint32_t led_data[], int t, fixed_t pos0, 
 		//int value = 750 + ((250*fractal_noise( ((i+41)<<SHIFT) / 20, (t<<SHIFT)/300, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
 		//int saturation = 500 + ((500*fractal_noise( ((i+129)<<SHIFT) / 9, (t<<SHIFT)/150, (1<<SHIFT)/2, (1<<SHIFT)/4, (1<<SHIFT)/8 )) >> SHIFT);
 		// begin to desaturate the color at a speed of 50 leds/sec. Fully desaturate at 50+50 leds/sec.
-		uint32_t color = hsv2(hue, saturation, value);
+		uint32_t color = hsv2(hue, saturation, value*brightness/1000);
 		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = color;
 		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = color;
 	}
 }
 
-void ledpattern_bottom_snake(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+void ledpattern_bottom_snake(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness)
 {
 	const int fulllength = ((2*N_BOTTOM)<<SHIFT);
 	const int snakelen = 10 << SHIFT;
@@ -231,9 +269,9 @@ void ledpattern_bottom_snake(volatile uint32_t led_data[], int t, fixed_t pos0, 
 		int value = 0;
 	
 		if (snakehead <= currpos && currpos <= snakehead+snakelen)
-			value = snake_value(currpos, snakehead, snakelen, 2, 1000);
+			value = snake_value(currpos, snakehead, snakelen, 2, brightness);
 		if (snakehead - fulllength <= currpos && currpos <= snakehead+snakelen-fulllength)
-			value = snake_value(currpos, snakehead-fulllength, snakelen, 2, 1000);
+			value = snake_value(currpos, snakehead-fulllength, snakelen, 2, brightness);
 
 		uint32_t color = hsv2(hue, saturation, value);
 		led_data[N_SIDE+N_FRONT+N_SIDE+i] = color;
@@ -241,7 +279,7 @@ void ledpattern_bottom_snake(volatile uint32_t led_data[], int t, fixed_t pos0, 
 }
 
 
-void ledpattern_bottom_position_color(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+void ledpattern_bottom_position_color(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness)
 {
 	(void) t;
 	(void) velocity;
@@ -250,13 +288,13 @@ void ledpattern_bottom_position_color(volatile uint32_t led_data[], int t, fixed
 	{
 		int hue = (pos0*12)>>SHIFT;
 		// begin to desaturate the color at a speed of 50 leds/sec. Fully desaturate at 50+50 leds/sec.
-		uint32_t color = hsv2(hue, 1000, 1000);
+		uint32_t color = hsv2(hue, 1000, brightness);
 		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = color;
 		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = color;
 	}
 }
 
-void ledpattern_bottom_rainbow(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+void ledpattern_bottom_rainbow(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness)
 {
 	(void) t; // unused
 
@@ -267,13 +305,13 @@ void ledpattern_bottom_rainbow(volatile uint32_t led_data[], int t, fixed_t pos0
 
 		// begin to desaturate the color at a speed of 50 leds/sec. Fully desaturate at 50+50 leds/sec.
 		int saturation = 1000 - clamp( ((velocity - (50<<SHIFT) ) * 1000 / 50) >> SHIFT, 0, 1000);
-		uint32_t color = hsv2(hue, saturation, 1000);
+		uint32_t color = hsv2(hue, saturation, brightness);
 		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM-1-i] = color;
 		led_data[N_SIDE+N_FRONT+N_SIDE+N_BOTTOM+i] = color;
 	}
 }
 
-void ledpattern_bottom_velocity_color(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity)
+void ledpattern_bottom_velocity_color(volatile uint32_t led_data[], int t, fixed_t pos0, fixed_t velocity, int brightness)
 {
 	(void) pos0; // unused
 
@@ -291,7 +329,7 @@ void ledpattern_bottom_velocity_color(volatile uint32_t led_data[], int t, fixed
 	static int value_smooth = 0;
 	value_smooth += (instant_value - value_smooth) / 30;
 	
-	uint32_t color = hsv2(base_hue + velo_hue, saturation, value_smooth);
+	uint32_t color = hsv2(base_hue + velo_hue, saturation, value_smooth * brightness / 1000);
 
 	for (int i=0; i<N_BOTTOM; i++)
 	{
@@ -302,6 +340,7 @@ void ledpattern_bottom_velocity_color(volatile uint32_t led_data[], int t, fixed
 
 ledpattern_bottom_t ledpatterns_bottom[N_BOTTOM_PATTERNS] = {
 	ledpattern_bottom_rainbow,
+	ledpattern_bottom_dots,
 	ledpattern_bottom_3color,
 	ledpattern_bottom_water,
 	ledpattern_bottom_snake,

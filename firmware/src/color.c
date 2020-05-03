@@ -49,7 +49,7 @@ uint32_t hsv(uint32_t hue, uint32_t saturation, uint32_t value)
 
 	switch (hi)
 	{
-		case 0: return RGBg(v, t*4/5, p);
+		case 0: return RGBg(v, t*4/5, p); // dim the green leds, they're brighter
 		case 1: return RGBg(q, v*4/5, p);
 		case 2: return RGBg(p, v*4/5, t);
 		case 3: return RGBg(p, q*4/5, v);

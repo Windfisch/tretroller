@@ -204,7 +204,7 @@ void tim2_isr(void)
 		//ledpattern_bottom_snake(led_data, t, pos0, velocity);
 		//ledpattern_bottom_water(led_data, t, pos0, velocity);
 		//ledpattern_bottom_rainbow(led_data, t, pos0, velocity);
-		ledpatterns_bottom[ledpattern_bottom_idx](led_data, t, pos0, velocity);
+		ledpatterns_bottom[ledpattern_bottom_idx](led_data, t, pos0, velocity, brightness);
 		//ledpattern_bottom_position_color(led_data, t, pos0, velocity);
 	}
 

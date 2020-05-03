@@ -8,7 +8,6 @@
 static fixed_t random_data[RESOLUTION_X][RESOLUTION_Y]; // between -(1<<SHIFT) and (1<<SHIFT)
 
 #define MUL(a,b) ((a*b)>>SHIFT)
-#define ONE (1<<SHIFT)
 #define NUM(x) ((x)<<SHIFT)
 
 void noise_init(void)
