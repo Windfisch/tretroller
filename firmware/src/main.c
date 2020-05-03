@@ -158,9 +158,9 @@ void tim2_isr(void)
 
 		button_press_time++;
 
-		if (button_press_time >= 2*FPS)
+		if (button_press_time >= FPS)
 		{
-			brightness += 1000 / 3 / FPS * brightness_direction;
+			brightness += 750 / FPS * brightness_direction;
 			if (brightness >= 1000) brightness_direction = -1;
 			if (brightness <= 0) brightness_direction = +1;
 			brightness = clamp(brightness, 0, 1000);
@@ -171,12 +171,12 @@ void tim2_isr(void)
 	}
 	else if (button_press_time > 0) // release event
 	{
-		if (button_press_time < FPS) // < 1sec?
+		if (button_press_time < FPS/3) // < 1/3 sec?
 		{
 			printf("switch ledpattern\n");
 			ledpattern_bottom_idx = (ledpattern_bottom_idx + 1) % N_BOTTOM_PATTERNS;
 		}
-		else if (button_press_time < 2*FPS)
+		else if (button_press_time < FPS) // < 1 sec?
 		{
 			printf("switch frontpattern\n");
 			ledpattern_front_idx = (ledpattern_front_idx + 1) % N_FRONT_PATTERNS;
